@@ -1,0 +1,8 @@
+{
+  "name": "get_verified_financial_news",
+  "description": "Scours reputable sources (Bloomberg, Reuters, FT, WSJ) for the top 5 most significant financial news items from the past 48 hours, verifies them, and returns a ranked list as a string.",
+  "parameters": {
+    "type": "OBJECT",
+    "properties": {}
+  }
+}

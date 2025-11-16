@@ -1,0 +1,14 @@
+{
+  "name": "get_macro_economic_analysis",
+  "description": "Accepts a string of financial news items and performs a detailed macro-economic analysis, returning the output in a structured JSON format.",
+  "parameters": {
+    "type": "OBJECT",
+    "properties": {
+      "news_items_text": {
+        "type": "STRING",
+        "description": "A string containing the compiled news items to be analyzed."
+      }
+    },
+    "required": ["news_items_text"]
+  }
+}

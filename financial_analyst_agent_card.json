@@ -1,0 +1,10 @@
+
+{
+  "name": "get_daily_financial_macro_analysis",
+  "description": "Executes a two-agent process to fetch and analyze the top 5 financial news items from the last 48 hours. Returns a detailed macro-economic analysis in JSON format.",
+  "parameters": {
+    "type": "OBJECT",
+    "properties": {},
+    "required": []
+  }
+}

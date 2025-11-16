@@ -1,0 +1,5 @@
+{
+  "name": "Financial News Macro-Economic Analysis",
+  "description": "A two-agent system that uses the Gemini API to find and analyze top financial news. The News Scout agent finds verified news, and the Macro Analyst agent provides a detailed macro-economic analysis in JSON format.",
+  "requestFramePermissions": []
+}

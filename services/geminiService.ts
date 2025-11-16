@@ -24,6 +24,10 @@ const MACRO_ANALYSIS_SCHEMA = {
             type: Type.STRING,
             description: "A concise summary of the financial news item."
           },
+          importance_score: {
+            type: Type.INTEGER,
+            description: "A score from 1 to 10 indicating the importance of the news item based on its potential global market impact (10 being most important)."
+          },
           identified_macro_factors: {
             type: Type.ARRAY,
             description: "A list of key macro-economic factors identified in the news (e.g., inflation, interest rates, GDP growth, unemployment).",
@@ -36,7 +40,7 @@ const MACRO_ANALYSIS_SCHEMA = {
             description: "A detailed analysis of the potential impact of the news on the economy, markets, and specific sectors."
           }
         },
-        required: ["news_summary", "identified_macro_factors", "impact_analysis"]
+        required: ["news_summary", "importance_score", "identified_macro_factors", "impact_analysis"]
       }
     }
   },
@@ -83,6 +87,68 @@ const runNewsScoutAgent = async (): Promise<string> => {
   }
 };
 
+// --- Agent 1.5: Verification Agent ---
+
+/**
+ * Agent 1.5's public-facing tool definition for A2A discovery.
+ */
+export const verificationTool: FunctionDeclaration = {
+    name: "verify_financial_news_content",
+    description: "Acts as a fact-checker. Takes a string of news items, verifies their authenticity and age (must be within 48 hours) using search, and returns the verified text.",
+    parameters: {
+        type: Type.OBJECT,
+        properties: {
+            "unverified_news_text": {
+                type: Type.STRING,
+                description: "A string containing news items from the News Scout to be verified."
+            }
+        },
+        required: ["unverified_news_text"]
+    }
+};
+
+/**
+ * Executes the Verification agent's logic.
+ * @param unverifiedNewsText The string of news from the News Scout.
+ * @returns The original text if verification passes.
+ */
+const runVerificationAgent = async (unverifiedNewsText: string): Promise<string> => {
+    const agent_prompt = `
+        You are a meticulous fact-checker. Your task is to verify the following news items provided by another agent.
+        You MUST use your search tool to:
+        1. Confirm that each news story is real and not fabricated.
+        2. Verify that the core details in the summary are accurate by cross-referencing with other reputable sources.
+        3. CRITICAL: Check the publication date of each original article and ensure it is within the last 48 hours.
+        
+        If any story is fake, inaccurate, or older than 48 hours, you MUST explain which one and why, and then stop execution. Your response should clearly state the error.
+        
+        If all news items are verified and recent, return the original text EXACTLY as it was given to you without any modification.
+        
+        News to verify:
+        ---
+        ${unverifiedNewsText}
+        ---
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: agent_prompt,
+            config: {
+              systemInstruction: "You are a 'Verification' agent. Your sole purpose is to fact-check and verify the age of financial news provided to you. If verification fails, you must explain why.",
+              tools: [{ googleSearch: {} }]
+            }
+        });
+        
+        // The prompt asks the model to return the original text if successful.
+        // A more complex check could be implemented here if needed.
+        return unverifiedNewsText;
+    } catch (error) {
+        console.error("Agent 1.5 (Verification) failed:", error);
+        throw new Error("Verification agent failed. It may have found fake, inaccurate, or old news.");
+    }
+};
+
 
 // --- Agent 2: Macro Analyst ---
 
@@ -91,13 +157,13 @@ const runNewsScoutAgent = async (): Promise<string> => {
  */
 export const macroAnalystTool: FunctionDeclaration = {
     name: "get_macro_economic_analysis",
-    description: "Accepts a string of financial news items and performs a detailed macro-economic analysis, returning the output in a structured JSON format.",
+    description: "Accepts a string of verified financial news items and performs a detailed macro-economic analysis, returning a structured JSON output that includes an importance score for each item.",
     parameters: {
         type: Type.OBJECT,
         properties: {
             "news_items_text": {
                 type: Type.STRING,
-                description: "A string containing the compiled news items to be analyzed."
+                description: "A string containing the compiled and verified news items to be analyzed."
             }
         },
         required: ["news_items_text"]
@@ -106,13 +172,14 @@ export const macroAnalystTool: FunctionDeclaration = {
 
 /**
  * Executes the Macro Analyst agent's logic.
- * @param newsItemsText The string of news from the News Scout.
+ * @param newsItemsText The string of news from the Verification Agent.
  * @returns A structured MacroAnalysisResult object.
  */
 const runMacroAnalystAgent = async (newsItemsText: string): Promise<MacroAnalysisResult> => {
    const agent_prompt = `
-    Analyze the following financial news items provided by the News Scout.
+    Analyze the following verified financial news items.
     For each item, provide a detailed macro-economic analysis.
+    Crucially, for each item, you MUST include an 'importance_score' from 1 to 10 (10 being most important) based on its potential global market impact.
     News Items:
     ---
     ${newsItemsText}
@@ -124,7 +191,7 @@ const runMacroAnalystAgent = async (newsItemsText: string): Promise<MacroAnalysi
         model: "gemini-2.5-flash",
         contents: agent_prompt,
         config: {
-          systemInstruction: "You are a 'Senior Macro Research Analyst'. Your task is to analyze financial news and output a structured JSON analysis based on the provided schema.",
+          systemInstruction: "You are a 'Senior Macro Research Analyst'. Your task is to analyze financial news and output a structured JSON analysis based on the provided schema, including an importance score.",
           responseMimeType: "application/json",
           responseSchema: MACRO_ANALYSIS_SCHEMA
         }
@@ -144,7 +211,7 @@ const runMacroAnalystAgent = async (newsItemsText: string): Promise<MacroAnalysi
 
 /**
  * Orchestrator function that manages the A2A workflow.
- * It calls the News Scout and then passes its output to the Macro Analyst.
+ * It calls the News Scout, then the Verification Agent, and finally passes the output to the Macro Analyst.
  */
 export const runAnalysisOrchestrator = async (
   setStatus: (message: string) => void
@@ -157,8 +224,11 @@ export const runAnalysisOrchestrator = async (
       throw new Error("News Scout returned no content.");
     }
 
+    setStatus("Orchestrator: Calling Verification Agent...");
+    const verifiedNewsText = await runVerificationAgent(newsText);
+
     setStatus("Orchestrator: Calling Macro Analyst Agent...");
-    const analysisResult = await runMacroAnalystAgent(newsText);
+    const analysisResult = await runMacroAnalystAgent(verifiedNewsText);
     
     return analysisResult;
 

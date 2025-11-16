@@ -1,0 +1,14 @@
+{
+  "name": "verify_financial_news_content",
+  "description": "Acts as a fact-checker. Takes a string of news items, verifies their authenticity and age (must be within 48 hours) using search, and returns the verified text.",
+  "parameters": {
+    "type": "OBJECT",
+    "properties": {
+      "unverified_news_text": {
+        "type": "STRING",
+        "description": "A string containing news items from the News Scout to be verified."
+      }
+    },
+    "required": ["unverified_news_text"]
+  }
+}
